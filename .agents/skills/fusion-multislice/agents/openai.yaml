@@ -1,0 +1,4 @@
+interface:
+  display_name: "FUSION Multi-Slice Analysis"
+  short_description: "Install and run FUSION for multi-slice spatial transcriptomics"
+  default_prompt: "Use FUSION to validate inputs, install dependencies, and run a reproducible multi-slice spatial transcriptomics workflow."

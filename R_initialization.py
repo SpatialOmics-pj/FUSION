@@ -67,7 +67,21 @@ def adata_to_dgC_fast(adata, Matrix):
     )
     return dgC
 
-def FUSION_Init(adata_list, sc_adata, domain_size, R_HOME, R_USER, min_gene: int = 100, min_spot: int = 5):
+def FUSION_Init(
+    adata_list,
+    sc_adata,
+    domain_size,
+    R_HOME=None,
+    R_USER=None,
+    min_gene: int = 100,
+    min_spot: int = 5,
+):
+    """Initialize FUSION with IRIS.
+
+    ``R_HOME`` and ``R_USER`` remain optional compatibility arguments for
+    existing notebooks. Configure the R environment before importing this
+    module when custom paths are required.
+    """
 
     domain_size =int(1.8*domain_size)
     
@@ -82,7 +96,7 @@ def FUSION_Init(adata_list, sc_adata, domain_size, R_HOME, R_USER, min_gene: int
     sc_count_r = adata_to_dgC_fast(sc_adata.T, Matrix)
     sc_meta_r = pandas2ri.py2rpy(sc_adata.obs)
 
-    if not os.path.exists('mean_basis.csv'):
+    if not os.path.exists(folder_path + '/mean_basis.csv'):
 
         mean_basis, var_basis=CT_expression_mean_var(sc_adata)
 
@@ -175,7 +189,6 @@ def FUSION_Init(adata_list, sc_adata, domain_size, R_HOME, R_USER, min_gene: int
 
         print('Section{} initialization complete'.format(idx))
             
-
 
 
 
