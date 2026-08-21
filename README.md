@@ -1,94 +1,156 @@
-# Efficient Latent-Topic Modeling Unifies Cell-Type Deconvolution and Domain Discvoery for Multi-Section Spatial Transcriptomics
+# FUSION
 
-FUSION is a fast method for multi‑section SRT that, with a matched scRNA‑seq reference, performs cell‑type deconvolution, spatial‑domain detection, and cross‑section alignment in a single probabilistic framework. Each read is assigned to a latent topic representing a reference cell type; spot‑level topic aggregates yield cell‑type proportions, and clustering these proportions reveals coherent spatial domains shared across sections.
+FUSION is a research toolkit for multi-slice spatial transcriptomics. With a
+matched single-cell RNA-seq reference, it supports joint dimensionality
+reduction, spatial-domain clustering, cell-type deconvolution, cross-slice
+alignment, and optional embedding correction.
 
-## 📂 Repository Layout
-```text
-FUSION/
-├── main_ref.py            # training / inference entry point
-├── dataprocess.py         # preprocessing & gene filtering
-├── r_batch.py             # WGAN batch‑effect removal
-├── R_initialization.py    # R helpers called via rpy2
-├── utils.py               # misc. utility functions
-├── environment.yml        # reproducible Conda + R environment
-├── LICENSE
-├── README.md              # ← you are here
-│
-├── notebooks/             # interactive demos & benchmarks
-│   ├── DLPFC_all.ipynb        # end‑to‑end run on 12 DLPFC slices
-│   └── DLPFC_batch_remove.ipynb
-│
-├── dataset/               # toy data to get you started
-│   ├── SC_data/               # reference scRNA‑seq (AnnData)
-│   └── SRT_data/              # Visium slides (.h5ad)
-│
-└── tests/                 # unit / smoke tests
-    └── test_inference.py
-```
-## 🛠️ Dependencies
+> **Development status:** this repository currently contains the research
+> implementation and example notebooks. Interfaces and output formats may
+> change while the package is under active development.
 
-#### Python core 
-- python ≥ 3.9, numpy ≥ 1.24, pandas ≥ 2.0, scipy ≥ 1.10, h5py ≥ 3.10, scikit‑learn ≥ 1.3, tqdm ≥ 4.66, rpy2 ≥ 3.5, matplotlib ≥ 3.8, seaborn ≥ 0.13
+## Installation
 
-#### Deep‑learning and Spatial‑omics
-- pytorch = 2.2, torchvision = 0.17, torchaudio = 2.2, scanpy ≥ 1.9, anndata ≥ 0.10, umap‑learn = 0.5.5
-  
-#### R runtime
-- r‑base ≥ 4.3.3, r‑essentials ≥ 4.2.3  *(ggplot2, tidyverse, …)*, Matrix ≥ 1.7‑0, devtools ≥ 2.4.5, IRIS = 1.0.1:```devtools::install_github("YingMa0107/IRIS")```
+FUSION requires Python 3.9 or newer. The initialization step also requires R
+4.2.2 or newer on `PATH`; the installer adds the R package
+[IRIS](https://github.com/YingMa0107/IRIS) when needed. Because IRIS compiles
+native code, a C/C++/Fortran toolchain is required. On macOS, install the
+[official R development tools](https://mac.r-project.org/tools/), including
+gfortran, before running the complete installer.
 
-
-
-## 🏃‍♂️ Using FUSION – step‑by‑step
-
-
-<summary><strong>1 · Clone&nbsp;&amp;&nbsp;install</strong></summary>
+### Recommended: repository installer
 
 ```bash
-# clone the repo
-git clone https://github.com/<your‑org>/FUSION.git
+git clone https://github.com/SpatialOmics-pj/FUSION.git
 cd FUSION
-
-# create the Conda + R environment
-conda env create -n fusion
-conda activate fusion
-
+python install_fusion.py
 ```
 
-<summary><strong>2 · Running&nbsp;&amp;&nbsp;Testing</strong></summary>
+For a Python-only installation that omits `rpy2` and IRIS:
 
-Before running FUSION, prepare the inputs below:
+```bash
+python install_fusion.py --skip-r
+```
 
----
+Python-only mode is useful for inspecting the package, but it cannot run
+`FUSION_Init`.
 
-| Object | Required fields | Example path |
-|--------|-----------------|--------------|
-| **SRT slides** | `AnnData` (`.h5ad`) with <br>• `.X` = raw spot‑by‑gene counts<br>• `adata.obsm["spatial"]` = `[[x, y], …]` | `dataset/SRT_data/151507_adata.h5ad` |
-| **scRNA‑seq reference** | `AnnData` with `obs["cellType"]` labels | `dataset/SC_data/scref_adata.h5ad` |
+JupyterLab is optional. Add it only when you want to run the bundled
+notebooks:
 
-Group slides that belong to the **same patient / condition** into an inner list; Ccollect those inner lists into `adata_list`, e.g. in DLPFC:
+```bash
+python -m pip install ".[notebooks]"
+```
+
+### Install directly with pip
+
+After R and IRIS are configured, install the complete package directly from
+GitHub:
+
+```bash
+Rscript -e 'cran <- "https://cloud.r-project.org"; if (!requireNamespace("BiocManager", quietly=TRUE)) install.packages("BiocManager", repos=cran); if (!requireNamespace("remotes", quietly=TRUE)) install.packages("remotes", repos=cran); options(repos=BiocManager::repositories()); BiocManager::install(c("SingleCellExperiment", "SummarizedExperiment", "DelayedArray", "HDF5Array", "S4Vectors"), ask=FALSE, update=FALSE); if (!requireNamespace("rliger", quietly=TRUE)) install.packages("rliger", repos=cran, type=if (.Platform$OS.type == "windows") "binary" else "source"); if (!requireNamespace("IRIS", quietly=TRUE)) remotes::install_github("YingMa0107/IRIS", dependencies=NA, upgrade="never")'
+python -m pip install "fusion-srt[full] @ https://github.com/SpatialOmics-pj/FUSION/archive/refs/heads/main.zip"
+```
+
+Verify the installation:
+
+```bash
+python -c "import fusion; print(fusion.__version__)"
+```
+
+## Input data
+
+FUSION expects:
+
+| Input | Required content |
+| --- | --- |
+| Spatial slices | `AnnData` objects with raw spot-by-gene counts in `.X` and coordinates in `.obsm["spatial"]` |
+| Single-cell reference | An `AnnData` object with raw cell-by-gene counts and `.obs["cellType"]` plus `.obs["sampleID"]` |
+
+Gene identifiers must be consistent between the spatial and single-cell data.
+Group slices from the same subject or condition in an inner list, then collect
+those groups in `adata_list`.
+
+## Minimal workflow
 
 ```python
 import scanpy as sc
-# three patients, four slides each
-adata_list = [
-    [sc.read_h5ad(f"dataset/SRT_data/{sid}_adata.h5ad")
-     for sid in ("151507","151508","151509","151510")],
-    [sc.read_h5ad(f"dataset/SRT_data/{sid}_adata.h5ad")
-     for sid in ("151669","151670","151671","151672")],
-    [sc.read_h5ad(f"dataset/SRT_data/{sid}_adata.h5ad")
-     for sid in ("151673","151674","151675","151676")]
-]
-sc_adata = sc.read_h5ad("dataset/SC_data/scref_adata.h5ad")
+from fusion import FUSION_Init, FUSION_main, FUSION_preprocess, section_alignment
 
-from R_initialization import FUSION_Init    
-FUSION_Init(adata_list, sc_adata, domain_size=7)
+adata_list = [[
+    sc.read_h5ad("dataset/SRT_data/151507_adata.h5ad"),
+    sc.read_h5ad("dataset/SRT_data/151669_adata.h5ad"),
+    sc.read_h5ad("dataset/SRT_data/151673_adata.h5ad"),
+]]
+sc_adata = sc.read_h5ad("path/to/your_sc_reference.h5ad")
 
-from main_ref import FUSION_preprocess, FUSION_main
-log_fc_cut = 1.5         # log‑fold‑change threshold for marker filtering
-FUSION_preprocess(adata_list, log_fc_cut)
+domain_size = 7
+seed = 123
 
-out, emb = FUSION_main(adata_list, embed_dim=50, domain_size=7)
+# Creates intermediate files in ./preprocess_ref.
+FUSION_Init(adata_list, sc_adata, domain_size=domain_size)
+FUSION_preprocess(adata_list, log_fc_cut=1.5, seed=seed)
+
+out, embeddings = FUSION_main(
+    sp_slice_list=adata_list,
+    topic_size=50,
+    domain_size=domain_size,
+    spatial_penalty=[(1.0, 1.0)],  # one pair for each outer group
+    remove_tmp_files=True,
+    device="cpu",
+    seed=seed,
+)
+
+aligned_out = section_alignment(out, method="Distance")
 ```
 
-For an illustrative example on DLPFC, see the Jupyter notebook: `Jupyter notebook` for details.
+`out` is a list of tables containing coordinates, domain assignments,
+cell-type proportions, and slide indices. `embeddings` contains the learned
+low-dimensional representation for each slice.
 
+### Optional batch correction
+
+```python
+from fusion import FUSION_correction
+
+corrected_embeddings = FUSION_correction(adata_list, embeddings, seed=seed)
+```
+
+The current `FUSION_correction` implementation requires a CUDA-capable GPU.
+The core FUSION model can run with `device="cpu"` or a CUDA device supported by
+PyTorch.
+
+## Coding-agent support
+
+This repository includes the
+[`fusion-multislice`](.agents/skills/fusion-multislice/SKILL.md) skill. Codex
+and compatible coding agents that scan `.agents/skills` can use it to:
+
+- recognize multi-slice spatial transcriptomics requests suited to FUSION;
+- validate AnnData structure before a long experiment;
+- install Python, R, and IRIS dependencies;
+- choose an explicit, reproducible workflow and preserve outputs;
+- avoid unsupported assumptions, including CPU batch correction.
+
+To make the skill available in another project, copy
+`.agents/skills/fusion-multislice` into that project's `.agents/skills`
+directory. In Codex, you can also explicitly request `$fusion-multislice`.
+
+## Examples and repository layout
+
+- `Jupyter notebook/DLPFC_all.ipynb`: end-to-end DLPFC example.
+- `Jupyter notebook/DLPFC_batch_remove.ipynb`: embedding-correction example.
+- `dataset/`: small example spatial files and a placeholder for your
+  single-cell reference.
+- `main_ref.py`, `R_initialization.py`, and `r_batch.py`: research
+  implementation modules retained for compatibility with the notebooks.
+
+The preprocessing stages write to `preprocess_ref/` in the current working
+directory. Use a clean experiment directory, and set `remove_tmp_files=False`
+in `FUSION_main` if those intermediate files are needed for debugging.
+
+## Citation and support
+
+Citation details will be added when the accompanying manuscript is public.
+For installation problems or reproducible bug reports, open a
+[GitHub issue](https://github.com/SpatialOmics-pj/FUSION/issues).

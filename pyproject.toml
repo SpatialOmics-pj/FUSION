@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fusion-srt"
+version = "0.1.0"
+description = "Multi-slice spatial transcriptomics dimensionality reduction, clustering, and deconvolution"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "matplotlib>=3.8,<4",
+  "numpy>=1.24,<3",
+  "pandas>=2.0,<3",
+  "scikit-learn>=1.3,<2",
+  "scipy>=1.10,<2",
+  "seaborn>=0.13,<1",
+  "torch>=2.2,<3",
+  "tqdm>=4.66",
+]
+keywords = [
+  "spatial transcriptomics",
+  "multi-slice",
+  "deconvolution",
+  "clustering",
+  "dimensionality reduction",
+]
+
+[project.optional-dependencies]
+analysis = ["anndata>=0.10,<1", "scanpy>=1.9,<2"]
+r = ["rpy2>=3.5,<4"]
+notebooks = ["anndata>=0.10,<1", "jupyterlab>=4,<5", "scanpy>=1.9,<2"]
+full = [
+  "anndata>=0.10,<1",
+  "rpy2>=3.5,<4",
+  "scanpy>=1.9,<2",
+]
+
+[project.urls]
+Homepage = "https://github.com/SpatialOmics-pj/FUSION"
+Repository = "https://github.com/SpatialOmics-pj/FUSION"
+Issues = "https://github.com/SpatialOmics-pj/FUSION/issues"
+
+[tool.setuptools]
+packages = ["fusion"]
+py-modules = [
+  "R_initialization",
+  "dataprocess",
+  "init_ref",
+  "main_ref",
+  "r_batch",
+  "ref_",
+  "utils",
+]
